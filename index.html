@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hostel Management App</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background-color: #e9ecef;
+      color: #333;
+      line-height: 1.6;
+    }
+    nav {
+      background-color: #007bff;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    nav h1 {
+      font-size: 1.5rem;
+    }
+    nav .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    nav button {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    nav button:hover {
+      background-color: #c82333;
+    }
+    .sidebar {
+      width: 250px;
+      background-color: #343a40;
+      color: white;
+      height: 100vh;
+      position: fixed;
+      top: 0;
+      left: -250px;
+      transition: left 0.3s ease;
+      padding-top: 60px;
+    }
+    .sidebar.active {
+      left: 0;
+    }
+    .sidebar ul {
+      list-style: none;
+      padding: 0;
+    }
+    .sidebar li {
+      padding: 15px 20px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .sidebar li:hover {
+      background-color: #495057;
+    }
+    .menu-toggle {
+      display: none;
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+    .container {
+      margin-left: 20px;
+      margin-right: 20px;
+      padding: 20px;
+      transition: margin-left 0.3s;
+    }
+    .container.shifted {
+      margin-left: 270px;
+    }
+    .card {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      padding: 20px;
+      margin-bottom: 20px;
+      transition: transform 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+    }
+    .page {
+      display: none;
+    }
+    .page.active {
+      display: block;
+    }
+    h2 {
+      color: #007bff;
+      margin-bottom: 20px;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    input, select, textarea {
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 16px;
+      transition: border-color 0.3s;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: #007bff;
+      outline: none;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.3s;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #f8f9fa;
+      color: #333;
+    }
+    .progress-bar {
+      background-color: #e9ecef;
+      border-radius: 4px;
+      height: 20px;
+      overflow: hidden;
+    }
+    .progress-bar div {
+      height: 100%;
+      transition: width 0.3s;
+    }
+    .progress-pending { background-color: #ffc107; width: 33%; }
+    .progress-in-progress { background-color: #17a2b8; width: 66%; }
+    .progress-completed { background-color: #28a745; width: 100%; }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+    .modal-content {
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      max-width: 500px;
+      width: 90%;
+      animation: slideIn 0.3s ease;
+    }
+    @keyframes slideIn {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .modal-content h3 {
+      margin-bottom: 20px;
+    }
+    .modal-content button.close {
+      background-color: #6c757d;
+      margin-top: 10px;
+    }
+    .notification {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #28a745;
+      color: white;
+      padding: 15px;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+    .notification.error {
+      background-color: #dc3545;
+    }
+    .notification.active {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .notification-log {
+      position: fixed;
+      top: 60px;
+      right: 20px;
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      max-width: 300px;
+      max-height: 400px;
+      overflow-y: auto;
+      display: none;
+      padding: 10px;
+    }
+    .notification-log.active {
+      display: block;
+    }
+    .notification-log p {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 5px;
+      margin-top: 20px;
+    }
+    .calendar div {
+      padding: 10px;
+      text-align: center;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .calendar .event {
+      background-color: #007bff;
+      color: white;
+    }
+    .loading {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.5rem;
+      color: #007bff;
+    }
+    .loading.active {
+      display: block;
+    }
+    @media (max-width: 768px) {
+      .sidebar {
+        width: 200px;
+        left: -200px;
+      }
+      .sidebar.active {
+        left: 0;
+      }
+      .container.shifted {
+        margin-left: 220px;
+      }
+      .menu-toggle {
+        display: block;
+      }
+    }
+  </style>
+</head>
+<body>
+  <nav>
+    <div class="menu-toggle" onclick="toggleSidebar()">☰</div>
+    <h1>Hostel Management</h1>
+    <div class="user-info">
+      <span id="user-name"></span>
+      <button id="notification-bell" onclick="toggleNotificationLog()">🔔</button>
+      <button id="logout-btn" style="display: none;" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+  <div class="sidebar" id="sidebar">
+    <ul id="sidebar-menu"></ul>
+  </div>
+  <div class="container" id="main-container">
+    <!-- Login Page -->
+    <div id="login-page" class="page active">
+      <div class="card">
+        <h2>Login</h2>
+        <form id="login-form">
+          <input type="email" id="login-email" placeholder="Email" required>
+          <input type="password" id="login-password" placeholder="Password" required>
+          <button type="submit">Login</button>
+        </form>
+        <p>Don't have an account? <a href="#" onclick="showPage('register-page')">Register</a></p>
+      </div>
+    </div>
+    <!-- Register Page -->
+    <div id="register-page" class="page">
+      <div class="card">
+        <h2>Register</h2>
+        <form id="register-form">
+          <input type="text" id="register-name" placeholder="Name" required>
+          <input type="email" id="register-email" placeholder="Email" required>
+          <input type="password" id="register-password" placeholder="Password" required>
+          <select id="register-role">
+            <option value="student">Student</option>
+            <option value="staff">Staff</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button type="submit">Register</button>
+        </form>
+        <p>Have an account? <a href="#" onclick="showPage('login-page')">Login</a></p>
+      </div>
+    </div>
+    <!-- Student Dashboard -->
+    <div id="student-dashboard" class="page">
+      <div id="student-room" class="card"></div>
+      <div id="student-maintenance" class="card"></div>
+      <div id="student-events" class="card"></div>
+      <div id="student-fees" class="card"></div>
+      <div id="student-lost-found" class="card"></div>
+      <div id="student-visitors" class="card"></div>
+      <div id="student-chat" class="card"></div>
+      <div id="student-feedback" class="card"></div>
+    </div>
+    <!-- Staff Dashboard -->
+    <div id="staff-dashboard" class="page">
+      <div id="staff-maintenance" class="card"></div>
+      <div id="staff-visitors" class="card"></div>
+    </div>
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard" class="page">
+      <div id="admin-rooms" class="card"></div>
+      <div id="admin-maintenance" class="card"></div>
+      <div id="admin-events" class="card"></div>
+      <div id="admin-fees" class="card"></div>
+      <div id="admin-feedback" class="card"></div>
+    </div>
+  </div>
+  <!-- Modal -->
+  <div id="modal" class="modal">
+    <div class="modal-content">
+      <h3 id="modal-title"></h3>
+      <form id="modal-form"></form>
+      <button class="close" onclick="closeModal()">Close</button>
+    </div>
+  </div>
+  <!-- Notification -->
+  <div id="notification" class="notification"></div>
+  <div id="notification-log" class="notification-log"></div>
+  <!-- Loading Spinner -->
+  <div id="loading" class="loading">Loading...</div>
+
+  <script>
+    let user = null;
+    let token = null;
+    let notifications = [];
+    const cache = new Map();
+
+    // Utility Functions
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      document.getElementById('sidebar').classList.remove('active');
+      document.getElementById('main-container').classList.remove('shifted');
+    }
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const container = document.getElementById('main-container');
+      sidebar.classList.toggle('active');
+      container.classList.toggle('shifted');
+    }
+
+    function showNotification(message, isError = false) {
+      const notification = document.getElementById('notification');
+      notification.textContent = message;
+      notification.classList.add('active');
+      if (isError) notification.classList.add('error');
+      notifications.push({ message, isError, timestamp: new Date().toLocaleString() });
+      updateNotificationLog();
+      setTimeout(() => {
+        notification.classList.remove('active', 'error');
+      }, 3000);
+    }
+
+    function toggleNotificationLog() {
+      document.getElementById('notification-log').classList.toggle('active');
+    }
+
+    function updateNotificationLog() {
+      const log = document.getElementById('notification-log');
+      log.innerHTML = notifications.map(n => `<p>${n.timestamp}: ${n.message}</p>`).join('');
+    }
+
+    function showModal(title, formContent) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-form').innerHTML = formContent;
+      document.getElementById('modal').style.display = 'flex';
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = 'none';
+      document.getElementById('modal-form').innerHTML = '';
+    }
+
+    function showLoading(show) {
+      document.getElementById('loading').classList.toggle('active', show);
+    }
+
+    // API Functions
+    async function fetchData(endpoint, useCache = true) {
+      if (useCache && cache.has(endpoint)) {
+        return cache.get(endpoint);
+      }
+      showLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000${endpoint}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Failed to fetch');
+        const data = await response.json();
+        cache.set(endpoint, data);
+        return data;
+      } catch (err) {
+        showNotification('Failed to fetch data', true);
+        return [];
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function postData(endpoint, data) {
+      showLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error('Action failed');
+        cache.clear(); // Invalidate cache on data change
+        return true;
+      } catch (err) {
+        showNotification(err.message, true);
+        return false;
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function putData(endpoint, data) {
+      showLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000${endpoint}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error('Update failed');
+        cache.clear();
+        return true;
+      } catch (err) {
+        showNotification(err.message, true);
+        return false;
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Authentication
+    async function login(email, password) {
+      showLoading(true);
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          user = data.user;
+          token = data.token;
+          document.getElementById('user-name').textContent = `Hello, ${user.name}`;
+          document.getElementById('logout-btn').style.display = 'inline';
+          showPage(`${user.role}-dashboard`);
+          showNotification('Login successful');
+          loadDashboard(user.role);
+        } else {
+          showNotification(data.message, true);
+        }
+      } catch (err) {
+        showNotification('Login failed', true);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function register(name, email, password, role) {
+      showLoading(true);
+      try {
+        const response = await fetch('http://localhost:5000/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, role })
+        });
+        if (response.ok) {
+          showPage('login-page');
+          showNotification('Registration successful. Please login.');
+        } else {
+          showNotification('Registration failed', true);
+        }
+      } catch (err) {
+        showNotification('Registration failed', true);
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    function logout() {
+      user = null;
+      token = null;
+      cache.clear();
+      document.getElementById('user-name').textContent = '';
+      document.getElementById('logout-btn').style.display = 'none';
+      showPage('login-page');
+    }
+
+    // Dashboard Loading
+    async function loadDashboard(role) {
+      const sidebarMenu = document.getElementById('sidebar-menu');
+      sidebarMenu.innerHTML = '';
+      if (role === 'student') {
+        const sections = [
+          { id: 'student-room', name: 'Room Allotment' },
+          { id: 'student-maintenance', name: 'Maintenance Requests' },
+          { id: 'student-events', name: 'Event Calendar' },
+          { id: 'student-fees', name: 'Fees Reminder' },
+          { id: 'student-lost-found', name: 'Lost & Found' },
+          { id: 'student-visitors', name: 'Visitor Management' },
+          { id: 'student-chat', name: 'Community Chat' },
+          { id: 'student-feedback', name: 'Feedback' }
+        ];
+        sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
+        loadStudentDashboard();
+      } else if (role === 'staff') {
+        const sections = [
+          { id: 'staff-maintenance', name: 'Maintenance Requests' },
+          { id: 'staff-visitors', name: 'Visitor Management' }
+        ];
+        sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
+        loadStaffDashboard();
+      } else if (role === 'admin') {
+        const sections = [
+          { id: 'admin-rooms', name: 'Room Management' },
+          { id: 'admin-maintenance', name: 'Maintenance Requests' },
+          { id: 'admin-events', name: 'Event Management' },
+          { id: 'admin-fees', name: 'Fees Management' },
+          { id: 'admin-feedback', name: 'Feedback' }
+        ];
+        sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
+        loadAdminDashboard();
+      }
+    }
+
+    function scrollToSection(sectionId) {
+      document.getElementById(sectionId).scrollIntoView({ behavior: 'smooth' });
+      toggleSidebar();
+    }
+
+    // Student Dashboard
+    async function loadStudentDashboard() {
+      // Room Allotment
+      const rooms = await fetchData('/api/rooms');
+      document.getElementById('student-room').innerHTML = `
+        <h3>Room Allotment</h3>
+        <p>${rooms.length > 0 ? `Room: ${rooms[0].number}` : 'No room assigned'}</p>
+      `;
+
+      // Maintenance Requests
+      const maintenance = await fetchData('/api/maintenance');
+      document.getElementById('student-maintenance').innerHTML = `
+        <h3>Maintenance Requests</h3>
+        <button onclick="showMaintenanceForm()">Submit Request</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Progress</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${maintenance.map(req => `
+              <tr>
+                <td>${req.description}</td>
+                <td>${req.status}</td>
+                <td>
+                  <div class="progress-bar">
+                    <div class="${req.status === 'Pending' ? 'progress-pending' : req.status === 'In Progress' ? 'progress-in-progress' : 'progress-completed'}"></div>
+                  </div>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Events
+      const events = await fetchData('/api/events');
+      const today = new Date();
+      const monthDays = new Array(35).fill(null).map((_, i) => {
+        const date = new Date(today.getFullYear(), today.getMonth(), i + 1 - today.getDay());
+        return { day: date.getDate(), events: events.filter(e => new Date(e.date).getDate() === date.getDate()) };
+      });
+      document.getElementById('student-events').innerHTML = `
+        <h3>Event Calendar</h3>
+        <div class="calendar">
+          ${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => `<div>${day}</div>`).join('')}
+          ${monthDays.map(d => `
+            <div class="${d.events.length > 0 ? 'event' : ''}">
+              ${d.day || ''}
+              ${d.events.map(e => `<div>${e.title}</div>`).join('')}
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // Fees
+      const fees = await fetchData('/api/fees');
+      document.getElementById('student-fees').innerHTML = `
+        <h3>Fees Reminder</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Amount</th>
+              <th>Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${fees.map(fee => `
+              <tr>
+                <td>$${fee.amount}</td>
+                <td>${fee.dueDate}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Lost & Found
+      const lostFound = await fetchData('/api/lost-found');
+      document.getElementById('student-lost-found').innerHTML = `
+        <h3>Lost & Found</h3>
+        <button onclick="showLostFoundForm()">Post Item</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${lostFound.map(item => `
+              <tr>
+                <td>${item.description}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Visitors
+      const visitors = await fetchData('/api/visitors');
+      document.getElementById('student-visitors').innerHTML = `
+        <h3>Visitor Management</h3>
+        <button onclick="showVisitorForm()">Register Visitor</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visitors.map(visitor => `
+              <tr>
+                <td>${visitor.name}</td>
+                <td>${visitor.status}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Community Chat
+      const messages = await fetchData('/api/messages');
+      document.getElementById('student-chat').innerHTML = `
+        <h3>Community Chat</h3>
+        <form id="message-form">
+          <input type="text" id="message-content" placeholder="Type a message" required>
+          <button type="submit">Send</button>
+        </form>
+        <div id="messages">
+          ${messages.map(msg => `
+            <p><strong>${msg.sender}:</strong> ${msg.content}</p>
+          `).join('')}
+        </div>
+      `;
+      setInterval(() => loadStudentChat(), 10000); // Poll every 10 seconds
+
+      // Feedback
+      document.getElementById('student-feedback').innerHTML = `
+        <h3>Feedback</h3>
+        <button onclick="showFeedbackForm()">Submit Feedback</button>
+      `;
+    }
+
+    async function loadStudentChat() {
+      const messages = await fetchData('/api/messages', false);
+      document.getElementById('messages').innerHTML = messages.map(msg => `
+        <p><strong>${msg.sender}:</strong> ${msg.content}</p>
+      `).join('');
+    }
+
+    // Staff Dashboard
+    async function loadStaffDashboard() {
+      // Maintenance Requests
+      const maintenance = await fetchData('/api/maintenance');
+      document.getElementById('staff-maintenance').innerHTML = `
+        <h3>Maintenance Requests</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${maintenance.map(req => `
+              <tr>
+                <td>${req.description}</td>
+                <td>${req.status}</td>
+                <td>
+                  <button onclick="updateMaintenance('${req._id}', 'In Progress')">In Progress</button>
+                  <button onclick="updateMaintenance('${req._id}', 'Completed')">Completed</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Visitors
+      const visitors = await fetchData('/api/visitors');
+      document.getElementById('staff-visitors').innerHTML = `
+        <h3>Visitor Management</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visitors.map(visitor => `
+              <tr>
+                <td>${visitor.name}</td>
+                <td>${visitor.status}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Admin Dashboard
+    async function loadAdminDashboard() {
+      // Rooms
+      const rooms = await fetchData('/api/rooms');
+      document.getElementById('admin-rooms').innerHTML = `
+        <h3>Room Management</h3>
+        <button onclick="showRoomForm()">Assign Room</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Room Number</th>
+              <th>User ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rooms.map(room => `
+              <tr>
+                <td>${room.number}</td>
+                <td>${room.userId}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Maintenance Requests
+      const maintenance = await fetchData('/api/maintenance');
+      document.getElementById('admin-maintenance').innerHTML = `
+        <h3>Maintenance Requests</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${maintenance.map(req => `
+              <tr>
+                <td>${req.description}</td>
+                <td>${req.status}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Events
+      const events = await fetchData('/api/events');
+      document.getElementById('admin-events').innerHTML = `
+        <h3>Event Management</h3>
+        <button onclick="showEventForm()">Add Event</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${events.map(event => `
+              <tr>
+                <td>${event.title}</td>
+                <td>${event.date}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Fees
+      const fees = await fetchData('/api/fees');
+      document.getElementById('admin-fees').innerHTML = `
+        <h3>Fees Management</h3>
+        <button onclick="showFeeForm()">Add Fee</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Amount</th>
+              <th>Due Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${fees.map(fee => `
+              <tr>
+                <td>$${fee.amount}</td>
+                <td>${fee.dueDate}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Feedback
+      const feedback = await fetchData('/api/feedback');
+      document.getElementById('admin-feedback').innerHTML = `
+        <h3>Feedback</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Feedback</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${feedback.map(fb => `
+              <tr>
+                <td>${fb.feedback}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+    }
+
+    // Modal Forms
+    function showMaintenanceForm() {
+      showModal('Submit Maintenance Request', `
+        <input type="text" id="maintenance-description" placeholder="Issue (e.g., Fix light)" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const description = document.getElementById('maintenance-description').value;
+        if (await postData('/api/maintenance', { userId: user._id, description })) {
+          loadStudentDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showLostFoundForm() {
+      showModal('Post Lost & Found Item', `
+        <input type="text" id="lost-found-description" placeholder="Item description" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const description = document.getElementById('lost-found-description').value;
+        if (await postData('/api/lost-found', { description })) {
+          loadStudentDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showVisitorForm() {
+      showModal('Register Visitor', `
+        <input type="text" id="visitor-name" placeholder="Visitor Name" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const name = document.getElementById('visitor-name').value;
+        if (await postData('/api/visitors', { name, status: 'Pending' })) {
+          loadStudentDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showFeedbackForm() {
+      showModal('Submit Feedback', `
+        <textarea id="feedback-text" placeholder="Your feedback" required></textarea>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const feedback = document.getElementById('feedback-text').value;
+        if (await postData('/api/feedback', { userId: user._id, feedback })) {
+          loadStudentDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showRoomForm() {
+      showModal('Assign Room', `
+        <input type="text" id="room-number" placeholder="Room Number" required>
+        <input type="text" id="room-user-id" placeholder="User ID" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const number = document.getElementById('room-number').value;
+        const userId = document.getElementById('room-user-id').value;
+        if (await postData('/api/rooms', { number, userId })) {
+          loadAdminDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showEventForm() {
+      showModal('Add Event', `
+        <input type="text" id="event-title" placeholder="Event Title" required>
+        <input type="date" id="event-date" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('event-title').value;
+        const date = document.getElementById('event-date').value;
+        if (await postData('/api/events', { title, date })) {
+          loadAdminDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    function showFeeForm() {
+      showModal('Add Fee', `
+        <input type="text" id="fee-user-id" placeholder="User ID" required>
+        <input type="number" id="fee-amount" placeholder="Amount" required>
+        <input type="date" id="fee-due-date" required>
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = document.getElementById('fee-user-id').value;
+        const amount = document.getElementById('fee-amount').value;
+        const dueDate = document.getElementById('fee-due-date').value;
+        if (await postData('/api/fees', { userId, amount, dueDate })) {
+          loadAdminDashboard();
+          closeModal();
+        }
+      });
+    }
+
+    async function updateMaintenance(id, status) {
+      if (await putData(`/api/maintenance/${id}`, { status })) {
+        loadStaffDashboard();
+      }
+    }
+
+    // Event Listeners
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value;
+      const password = document.getElementById('login-password').value;
+      login(email, password);
+    });
+
+    document.getElementById('register-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('register-name').value;
+      const email = document.getElementById('register-email').value;
+      const password = document.getElementById('register-password').value;
+      const role = document.getElementById('register-role').value;
+      register(name, email, password, role);
+    });
+
+    document.getElementById('message-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const content = document.getElementById('message-content').value;
+      if (await postData('/api/messages', { sender: user.name, content })) {
+        loadStudentChat();
+        document.getElementById('message-form').reset();
+      }
+    });
+
+    // Keyboard Navigation
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Enter' && document.activeElement.tagName !== 'TEXTAREA') {
+        const form = document.activeElement.closest('form');
+        if (form) form.dispatchEvent(new Event('submit'));
+      }
+    });
+
+    // Form Validation
+    document.querySelectorAll('input, textarea').forEach(input => {
+      input.addEventListener('input', () => {
+        if (input.validity.valid) {
+          input.style.borderColor = '#28a745';
+        } else {
+          input.style.borderColor = '#dc3545';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
