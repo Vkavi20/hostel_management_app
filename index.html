@@ -137,6 +137,30 @@
     button:hover {
       background-color: #0056b3;
     }
+    button.delete {
+      background-color: #dc3545;
+    }
+    button.delete:hover {
+      background-color: #c82333;
+    }
+    button.show {
+      background-color: #28a745;
+    }
+    button.show:hover {
+      background-color: #218838;
+    }
+    button.approve {
+      background-color: #28a745;
+    }
+    button.approve:hover {
+      background-color: #218838;
+    }
+    button.reject {
+      background-color: #dc3545;
+    }
+    button.reject:hover {
+      background-color: #c82333;
+    }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -190,6 +214,9 @@
     }
     .modal-content h3 {
       margin-bottom: 20px;
+    }
+    .modal-content p {
+      margin-bottom: 10px;
     }
     .modal-content button.close {
       background-color: #6c757d;
@@ -331,26 +358,28 @@
     </div>
     <!-- Student Dashboard -->
     <div id="student-dashboard" class="page">
+      <div id="student-profile" class="card"></div>
       <div id="student-room" class="card"></div>
       <div id="student-maintenance" class="card"></div>
       <div id="student-events" class="card"></div>
       <div id="student-fees" class="card"></div>
-      <div id="student-lost-found" class="card"></div>
       <div id="student-visitors" class="card"></div>
-      <div id="student-chat" class="card"></div>
       <div id="student-feedback" class="card"></div>
     </div>
     <!-- Staff Dashboard -->
     <div id="staff-dashboard" class="page">
+      <div id="staff-profile" class="card"></div>
       <div id="staff-maintenance" class="card"></div>
       <div id="staff-visitors" class="card"></div>
     </div>
     <!-- Admin Dashboard -->
     <div id="admin-dashboard" class="page">
+      <div id="admin-profile" class="card"></div>
       <div id="admin-rooms" class="card"></div>
       <div id="admin-maintenance" class="card"></div>
       <div id="admin-events" class="card"></div>
       <div id="admin-fees" class="card"></div>
+      <div id="admin-visitors" class="card"></div>
       <div id="admin-feedback" class="card"></div>
     </div>
   </div>
@@ -358,6 +387,7 @@
   <div id="modal" class="modal">
     <div class="modal-content">
       <h3 id="modal-title"></h3>
+      <div id="modal-content-body"></div>
       <form id="modal-form"></form>
       <button class="close" onclick="closeModal()">Close</button>
     </div>
@@ -410,14 +440,16 @@
       log.innerHTML = notifications.map(n => `<p>${n.timestamp}: ${n.message}</p>`).join('');
     }
 
-    function showModal(title, formContent) {
+    function showModal(title, formContent, contentBody = '') {
       document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-content-body').innerHTML = contentBody;
       document.getElementById('modal-form').innerHTML = formContent;
       document.getElementById('modal').style.display = 'flex';
     }
 
     function closeModal() {
       document.getElementById('modal').style.display = 'none';
+      document.getElementById('modal-content-body').innerHTML = '';
       document.getElementById('modal-form').innerHTML = '';
     }
 
@@ -458,8 +490,9 @@
           },
           body: JSON.stringify(data)
         });
-        if (!response.ok) throw new Error('Action failed');
-        cache.clear(); // Invalidate cache on data change
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Action failed');
+        cache.clear();
         return true;
       } catch (err) {
         showNotification(err.message, true);
@@ -481,6 +514,26 @@
           body: JSON.stringify(data)
         });
         if (!response.ok) throw new Error('Update failed');
+        cache.clear();
+        return true;
+      } catch (err) {
+        showNotification(err.message, true);
+        return false;
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    async function deleteData(endpoint) {
+      showLoading(true);
+      try {
+        const response = await fetch(`http://localhost:5000${endpoint}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (!response.ok) throw new Error('Action failed');
         cache.clear();
         return true;
       } catch (err) {
@@ -531,7 +584,8 @@
           showPage('login-page');
           showNotification('Registration successful. Please login.');
         } else {
-          showNotification('Registration failed', true);
+          const data = await response.json();
+          showNotification(data.message || 'Registration failed', true);
         }
       } catch (err) {
         showNotification('Registration failed', true);
@@ -555,19 +609,19 @@
       sidebarMenu.innerHTML = '';
       if (role === 'student') {
         const sections = [
+          { id: 'student-profile', name: 'Profile' },
           { id: 'student-room', name: 'Room Allotment' },
           { id: 'student-maintenance', name: 'Maintenance Requests' },
           { id: 'student-events', name: 'Event Calendar' },
           { id: 'student-fees', name: 'Fees Reminder' },
-          { id: 'student-lost-found', name: 'Lost & Found' },
           { id: 'student-visitors', name: 'Visitor Management' },
-          { id: 'student-chat', name: 'Community Chat' },
           { id: 'student-feedback', name: 'Feedback' }
         ];
         sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
         loadStudentDashboard();
       } else if (role === 'staff') {
         const sections = [
+          { id: 'staff-profile', name: 'Profile' },
           { id: 'staff-maintenance', name: 'Maintenance Requests' },
           { id: 'staff-visitors', name: 'Visitor Management' }
         ];
@@ -575,10 +629,12 @@
         loadStaffDashboard();
       } else if (role === 'admin') {
         const sections = [
+          { id: 'admin-profile', name: 'Profile' },
           { id: 'admin-rooms', name: 'Room Management' },
           { id: 'admin-maintenance', name: 'Maintenance Requests' },
           { id: 'admin-events', name: 'Event Management' },
           { id: 'admin-fees', name: 'Fees Management' },
+          { id: 'admin-visitors', name: 'Visitor Management' },
           { id: 'admin-feedback', name: 'Feedback' }
         ];
         sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
@@ -593,11 +649,24 @@
 
     // Student Dashboard
     async function loadStudentDashboard() {
+      // Profile
+      document.getElementById('student-profile').innerHTML = `
+        <h3>Profile</h3>
+        <p>User ID: ${user.userId}</p>
+        <p>Name: ${user.name}</p>
+        <p>Role: ${user.role}</p>
+      `;
+
       // Room Allotment
       const rooms = await fetchData('/api/rooms');
       document.getElementById('student-room').innerHTML = `
         <h3>Room Allotment</h3>
-        <p>${rooms.length > 0 ? `Room: ${rooms[0].number}` : 'No room assigned'}</p>
+        ${rooms.length > 0 ? `
+          <p>Assigned Room: ${rooms[0].number}</p>
+        ` : `
+          <p>No room assigned</p>
+          <button onclick="showStudentRoomForm()">Request Room</button>
+        `}
       `;
 
       // Maintenance Requests
@@ -658,6 +727,7 @@
             <tr>
               <th>Amount</th>
               <th>Due Date</th>
+              <th>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -665,27 +735,7 @@
               <tr>
                 <td>$${fee.amount}</td>
                 <td>${fee.dueDate}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-
-      // Lost & Found
-      const lostFound = await fetchData('/api/lost-found');
-      document.getElementById('student-lost-found').innerHTML = `
-        <h3>Lost & Found</h3>
-        <button onclick="showLostFoundForm()">Post Item</button>
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${lostFound.map(item => `
-              <tr>
-                <td>${item.description}</td>
+                <td>${fee.status}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -701,6 +751,9 @@
           <thead>
             <tr>
               <th>Name</th>
+              <th>Contact Number</th>
+              <th>Visit Date</th>
+              <th>Purpose</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -708,28 +761,15 @@
             ${visitors.map(visitor => `
               <tr>
                 <td>${visitor.name}</td>
+                <td>${visitor.contactNumber}</td>
+                <td>${visitor.visitDate}</td>
+                <td>${visitor.purpose}</td>
                 <td>${visitor.status}</td>
               </tr>
             `).join('')}
           </tbody>
         </table>
       `;
-
-      // Community Chat
-      const messages = await fetchData('/api/messages');
-      document.getElementById('student-chat').innerHTML = `
-        <h3>Community Chat</h3>
-        <form id="message-form">
-          <input type="text" id="message-content" placeholder="Type a message" required>
-          <button type="submit">Send</button>
-        </form>
-        <div id="messages">
-          ${messages.map(msg => `
-            <p><strong>${msg.sender}:</strong> ${msg.content}</p>
-          `).join('')}
-        </div>
-      `;
-      setInterval(() => loadStudentChat(), 10000); // Poll every 10 seconds
 
       // Feedback
       document.getElementById('student-feedback').innerHTML = `
@@ -738,15 +778,16 @@
       `;
     }
 
-    async function loadStudentChat() {
-      const messages = await fetchData('/api/messages', false);
-      document.getElementById('messages').innerHTML = messages.map(msg => `
-        <p><strong>${msg.sender}:</strong> ${msg.content}</p>
-      `).join('');
-    }
-
     // Staff Dashboard
     async function loadStaffDashboard() {
+      // Profile
+      document.getElementById('staff-profile').innerHTML = `
+        <h3>Profile</h3>
+        <p>User ID: ${user.userId}</p>
+        <p>Name: ${user.name}</p>
+        <p>Role: ${user.role}</p>
+      `;
+
       // Maintenance Requests
       const maintenance = await fetchData('/api/maintenance');
       document.getElementById('staff-maintenance').innerHTML = `
@@ -782,6 +823,9 @@
           <thead>
             <tr>
               <th>Name</th>
+              <th>Contact Number</th>
+              <th>Visit Date</th>
+              <th>Purpose</th>
               <th>Status</th>
             </tr>
           </thead>
@@ -789,6 +833,9 @@
             ${visitors.map(visitor => `
               <tr>
                 <td>${visitor.name}</td>
+                <td>${visitor.contactNumber}</td>
+                <td>${visitor.visitDate}</td>
+                <td>${visitor.purpose}</td>
                 <td>${visitor.status}</td>
               </tr>
             `).join('')}
@@ -799,23 +846,42 @@
 
     // Admin Dashboard
     async function loadAdminDashboard() {
+      // Profile
+      document.getElementById('admin-profile').innerHTML = `
+        <h3>Profile</h3>
+        <p>User ID: ${user.userId}</p>
+        <p>Name: ${user.name}</p>
+        <p>Role: ${user.role}</p>
+      `;
+
       // Rooms
       const rooms = await fetchData('/api/rooms');
       document.getElementById('admin-rooms').innerHTML = `
         <h3>Room Management</h3>
-        <button onclick="showRoomForm()">Assign Room</button>
+        <button onclick="showRoomForm()">Add/Assign Room</button>
         <table>
           <thead>
             <tr>
               <th>Room Number</th>
-              <th>User ID</th>
+              <th>Status</th>
+              <th>User</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             ${rooms.map(room => `
               <tr>
                 <td>${room.number}</td>
-                <td>${room.userId}</td>
+                <td>${room.status}</td>
+                <td>${room.userId ? `${room.userId.name} (${room.userId.userId})` : '-'}</td>
+                <td>
+                  <button class="show" onclick="showRoomDetails('${room._id}', '${room.number}', '${room.status}', '${room.userId ? room.userId.name : '-'}', '${room.userId ? room.userId.userId : '-'}')">Show</button>
+                  ${room.status === 'occupied' ? `
+                    <button class="delete" onclick="unassignRoom('${room._id}')">Unassign</button>
+                  ` : `
+                    <button onclick="showRoomAssignForm('${room._id}', '${room.number}')">Assign</button>
+                  `}
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -875,15 +941,60 @@
         <table>
           <thead>
             <tr>
+              <th>User</th>
               <th>Amount</th>
               <th>Due Date</th>
+              <th>Status</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
             ${fees.map(fee => `
               <tr>
+                <td>${fee.userId ? `${fee.userId.name} (${fee.userId.userId})` : '-'}</td>
                 <td>$${fee.amount}</td>
                 <td>${fee.dueDate}</td>
+                <td>${fee.status}</td>
+                <td>
+                  ${fee.status === 'Pending' ? `
+                    <button onclick="updateFeeStatus('${fee._id}', 'Paid')">Mark as Paid</button>
+                  ` : '-'}
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Visitors
+      const visitors = await fetchData('/api/visitors');
+      document.getElementById('admin-visitors').innerHTML = `
+        <h3>Visitor Management</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Contact Number</th>
+              <th>Visit Date</th>
+              <th>Purpose</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${visitors.map(visitor => `
+              <tr>
+                <td>${visitor.name}</td>
+                <td>${visitor.contactNumber}</td>
+                <td>${visitor.visitDate}</td>
+                <td>${visitor.purpose}</td>
+                <td>${visitor.status}</td>
+                <td>
+                  ${visitor.status === 'Pending' ? `
+                    <button class="approve" onclick="updateVisitorStatus('${visitor._id}', 'Approved')">Approve</button>
+                    <button class="reject" onclick="updateVisitorStatus('${visitor._id}', 'Rejected')">Reject</button>
+                  ` : '-'}
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -911,7 +1022,89 @@
       `;
     }
 
-    // Modal Forms
+    // Modal Functions
+    function showRoomDetails(roomId, roomNumber, status, userName, userId) {
+      const contentBody = `
+        <p><strong>Room Number:</strong> ${roomNumber}</p>
+        <p><strong>Status:</strong> ${status}</p>
+        <p><strong>Assigned User:</strong> ${userName}</p>
+        <p><strong>User ID:</strong> ${userId}</p>
+      `;
+      showModal(`Room Details - ${roomNumber}`, '', contentBody);
+    }
+
+    async function showStudentRoomForm() {
+      const rooms = await fetchData('/api/rooms');
+      if (rooms.length > 0) {
+        showNotification('You already have a room assigned', true);
+        return;
+      }
+
+      const availableRooms = await fetchData('/api/rooms/available', false);
+      if (availableRooms.length === 0) {
+        showNotification('No rooms available', true);
+        return;
+      }
+
+      showModal('Request Room', `
+        <select id="room-number" required>
+          <option value="">Select Room</option>
+          ${availableRooms.map(room => `<option value="${room.number}">${room.number}</option>`).join('')}
+        </select>
+        <button type="submit">Request</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const number = document.getElementById('room-number').value;
+        if (await postData('/api/rooms', { number, userId: user._id })) {
+          loadStudentDashboard();
+          closeModal();
+          showNotification('Room requested successfully');
+        }
+      });
+    }
+
+    function showRoomForm() {
+      showModal('Add/Assign Room', `
+        <input type="text" id="room-number" placeholder="Room Number" required>
+        <input type="text" id="room-user-id" placeholder="User ID (optional)">
+        <button type="submit">Submit</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const number = document.getElementById('room-number').value;
+        const userId = document.getElementById('room-user-id').value || null;
+        if (await postData('/api/rooms', { number, userId })) {
+          loadAdminDashboard();
+          closeModal();
+          showNotification('Room added/assigned successfully');
+        }
+      });
+    }
+
+    function showRoomAssignForm(roomId, roomNumber) {
+      showModal(`Assign Room ${roomNumber}`, `
+        <input type="text" id="room-user-id" placeholder="User ID" required>
+        <button type="submit">Assign</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = document.getElementById('room-user-id').value;
+        if (await postData('/api/rooms', { number: roomNumber, userId })) {
+          loadAdminDashboard();
+          closeModal();
+          showNotification('Room assigned successfully');
+        }
+      });
+    }
+
+    async function unassignRoom(roomId) {
+      if (await deleteData(`/api/rooms/${roomId}`)) {
+        loadAdminDashboard();
+        showNotification('Room unassigned successfully');
+      }
+    }
+
     function showMaintenanceForm() {
       showModal('Submit Maintenance Request', `
         <input type="text" id="maintenance-description" placeholder="Issue (e.g., Fix light)" required>
@@ -927,34 +1120,33 @@
       });
     }
 
-    function showLostFoundForm() {
-      showModal('Post Lost & Found Item', `
-        <input type="text" id="lost-found-description" placeholder="Item description" required>
-        <button type="submit">Submit</button>
-      `);
-      document.getElementById('modal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const description = document.getElementById('lost-found-description').value;
-        if (await postData('/api/lost-found', { description })) {
-          loadStudentDashboard();
-          closeModal();
-        }
-      });
-    }
-
     function showVisitorForm() {
       showModal('Register Visitor', `
         <input type="text" id="visitor-name" placeholder="Visitor Name" required>
+        <input type="text" id="visitor-contact" placeholder="Contact Number" required>
+        <input type="date" id="visitor-date" required>
+        <textarea id="visitor-purpose" placeholder="Purpose of Visit" required></textarea>
         <button type="submit">Submit</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = document.getElementById('visitor-name').value;
-        if (await postData('/api/visitors', { name, status: 'Pending' })) {
+        const contactNumber = document.getElementById('visitor-contact').value;
+        const visitDate = document.getElementById('visitor-date').value;
+        const purpose = document.getElementById('visitor-purpose').value;
+        if (await postData('/api/visitors', { name, contactNumber, visitDate, purpose, status: 'Pending' })) {
           loadStudentDashboard();
           closeModal();
+          showNotification('Visitor registered successfully');
         }
       });
+    }
+
+    async function updateVisitorStatus(id, status) {
+      if (await putData(`/api/visitors/${id}`, { status })) {
+        loadAdminDashboard();
+        showNotification(`Visitor ${status.toLowerCase()} successfully`);
+      }
     }
 
     function showFeedbackForm() {
@@ -967,23 +1159,6 @@
         const feedback = document.getElementById('feedback-text').value;
         if (await postData('/api/feedback', { userId: user._id, feedback })) {
           loadStudentDashboard();
-          closeModal();
-        }
-      });
-    }
-
-    function showRoomForm() {
-      showModal('Assign Room', `
-        <input type="text" id="room-number" placeholder="Room Number" required>
-        <input type="text" id="room-user-id" placeholder="User ID" required>
-        <button type="submit">Submit</button>
-      `);
-      document.getElementById('modal-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const number = document.getElementById('room-number').value;
-        const userId = document.getElementById('room-user-id').value;
-        if (await postData('/api/rooms', { number, userId })) {
-          loadAdminDashboard();
           closeModal();
         }
       });
@@ -1025,6 +1200,13 @@
       });
     }
 
+    async function updateFeeStatus(id, status) {
+      if (await putData(`/api/fees/${id}`, { status })) {
+        loadAdminDashboard();
+        showNotification('Fee status updated successfully');
+      }
+    }
+
     async function updateMaintenance(id, status) {
       if (await putData(`/api/maintenance/${id}`, { status })) {
         loadStaffDashboard();
@@ -1046,15 +1228,6 @@
       const password = document.getElementById('register-password').value;
       const role = document.getElementById('register-role').value;
       register(name, email, password, role);
-    });
-
-    document.getElementById('message-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const content = document.getElementById('message-content').value;
-      if (await postData('/api/messages', { sender: user.name, content })) {
-        loadStudentChat();
-        document.getElementById('message-form').reset();
-      }
     });
 
     // Keyboard Navigation
