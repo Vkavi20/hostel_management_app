@@ -7,7 +7,7 @@ const models = require('./models');
 
 const app = express();
 const PORT = 5000;
-const JWT_SECRET = 'your_jwt_secret'; // Replace with a secure secret in production
+const JWT_SECRET = 'qTa1Oet2o7ijxFcCPJe2AEjeQHZlxeFmsCHNDJmOxSeQi0NmRaQC6YRfXl192uZd/QX4Ge6sqPRtrMqUpTGnOw==';
 
 // Middleware
 app.use(cors());
@@ -33,14 +33,37 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+// Utility to generate 6-digit alphanumeric userId
+function generateUserId() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 // Routes
 
 // Auth Routes
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, password, role } = req.body;
   try {
+    if (role === 'admin') {
+      const adminExists = await models.User.findOne({ role: 'admin' });
+      if (adminExists) {
+        return res.status(400).json({ message: 'Admin already exists' });
+      }
+    }
+
+    let userId;
+    do {
+      userId = generateUserId();
+    } while (await models.User.findOne({ userId }));
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new models.User({
+      userId,
       name,
       email,
       password: hashedPassword,
@@ -62,8 +85,8 @@ app.post('/api/auth/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: '1h' });
-    res.json({ token, user: { _id: user._id, name: user.name, role: user.role } });
+    const token = jwt.sign({ id: user._id, role: user.role, userId: user.userId }, JWT_SECRET, { expiresIn: '1h' });
+    res.json({ token, user: { _id: user._id, userId: user.userId, name: user.name, role: user.role } });
   } catch (err) {
     res.status(500).json({ message: 'Login failed' });
   }
@@ -71,15 +94,77 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Room Routes
 app.get('/api/rooms', authMiddleware, async (req, res) => {
-  const rooms = await models.Room.find({ userId: req.user.id });
-  res.json(rooms);
+  try {
+    if (req.user.role === 'admin') {
+      const rooms = await models.Room.find().populate('userId', 'userId name');
+      res.json(rooms);
+    } else {
+      const rooms = await models.Room.find({ userId: req.user.id });
+      res.json(rooms);
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch rooms' });
+  }
+});
+
+app.get('/api/rooms/available', authMiddleware, async (req, res) => {
+  try {
+    const rooms = await models.Room.find({ status: 'available' });
+    res.json(rooms);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch available rooms' });
+  }
 });
 
 app.post('/api/rooms', authMiddleware, async (req, res) => {
   const { number, userId } = req.body;
-  const room = new models.Room({ number, userId });
-  await room.save();
-  res.status(201).json(room);
+  try {
+    // Validate room number uniqueness
+    const existingRoom = await models.Room.findOne({ number });
+    if (existingRoom) {
+      return res.status(400).json({ message: 'Room number already exists' });
+    }
+
+    // If userId is provided, check if the user already has a room (for non-admins)
+    if (userId && req.user.role !== 'admin') {
+      const userRoom = await models.Room.findOne({ userId: req.user.id });
+      if (userRoom) {
+        return res.status(400).json({ message: 'You already have a room assigned' });
+      }
+    }
+
+    // Restrict non-admins to assigning rooms only to themselves
+    if (userId && req.user.role !== 'admin' && userId !== req.user.id) {
+      return res.status(403).json({ message: 'Unauthorized to assign room to another user' });
+    }
+
+    const room = new models.Room({ 
+      number, 
+      userId: userId || null, 
+      status: userId ? 'occupied' : 'available' 
+    });
+    await room.save();
+    res.status(201).json(room);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create room' });
+  }
+});
+
+app.delete('/api/rooms/:id', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+  try {
+    const room = await models.Room.findByIdAndUpdate(
+      req.params.id,
+      { userId: null, status: 'available' },
+      { new: true }
+    );
+    if (!room) return res.status(404).json({ message: 'Room not found' });
+    res.json({ message: 'Room unassigned' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to unassign room' });
+  }
 });
 
 // Maintenance Routes
@@ -116,54 +201,74 @@ app.post('/api/events', authMiddleware, async (req, res) => {
 
 // Fees Routes
 app.get('/api/fees', authMiddleware, async (req, res) => {
-  const fees = await models.Fee.find({ userId: req.user.id });
-  res.json(fees);
+  try {
+    if (req.user.role === 'admin') {
+      const fees = await models.Fee.find().populate('userId', 'userId name');
+      res.json(fees);
+    } else {
+      const fees = await models.Fee.find({ userId: req.user.id });
+      res.json(fees);
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch fees' });
+  }
 });
 
 app.post('/api/fees', authMiddleware, async (req, res) => {
   const { userId, amount, dueDate } = req.body;
-  const fee = new models.Fee({ userId, amount, dueDate });
+  const fee = new models.Fee({ userId, amount, dueDate, status: 'Pending' });
   await fee.save();
   res.status(201).json(fee);
 });
 
-// Lost & Found Routes
-app.get('/api/lost-found', authMiddleware, async (req, res) => {
-  const items = await models.LostFound.find();
-  res.json(items);
-});
-
-app.post('/api/lost-found', authMiddleware, async (req, res) => {
-  const { description } = req.body;
-  const item = new models.LostFound({ description });
-  await item.save();
-  res.status(201).json(item);
+app.put('/api/fees/:id', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+  const { status } = req.body;
+  try {
+    const fee = await models.Fee.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!fee) return res.status(404).json({ message: 'Fee not found' });
+    res.json(fee);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update fee status' });
+  }
 });
 
 // Visitor Routes
 app.get('/api/visitors', authMiddleware, async (req, res) => {
-  const visitors = await models.Visitor.find();
-  res.json(visitors);
+  try {
+    if (req.user.role === 'admin') {
+      const visitors = await models.Visitor.find().populate('userId', 'userId name');
+      res.json(visitors);
+    } else {
+      const visitors = await models.Visitor.find();
+      res.json(visitors);
+    }
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch visitors' });
+  }
 });
 
 app.post('/api/visitors', authMiddleware, async (req, res) => {
-  const { name, status } = req.body;
-  const visitor = new models.Visitor({ name, status });
+  const { name, contactNumber, visitDate, purpose, status } = req.body;
+  const visitor = new models.Visitor({ name, contactNumber, visitDate, purpose, status: status || 'Pending' });
   await visitor.save();
   res.status(201).json(visitor);
 });
 
-// Message Routes
-app.get('/api/messages', authMiddleware, async (req, res) => {
-  const messages = await models.Message.find();
-  res.json(messages);
-});
-
-app.post('/api/messages', authMiddleware, async (req, res) => {
-  const { sender, content } = req.body;
-  const message = new models.Message({ sender, content });
-  await message.save();
-  res.status(201).json(message);
+app.put('/api/visitors/:id', authMiddleware, async (req, res) => {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Unauthorized' });
+  }
+  const { status } = req.body;
+  try {
+    const visitor = await models.Visitor.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    if (!visitor) return res.status(404).json({ message: 'Visitor not found' });
+    res.json(visitor);
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update visitor status' });
+  }
 });
 
 // Feedback Routes
