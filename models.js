@@ -1,61 +1,74 @@
 const mongoose = require('mongoose');
+const Schema = mongoose.Schema;
 
-const UserSchema = new mongoose.Schema({
-  userId: { 
-    type: String, 
-    required: true, 
-    unique: true,
-    match: /^[A-Za-z0-9]{6}$/
-  },
+// User Schema
+const userSchema = new Schema({
+  userId: { type: String, required: true, unique: true },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
-  role: { type: String, enum: ['student', 'staff', 'admin'], default: 'student' },
-});
+  role: { type: String, enum: ['student', 'staff', 'admin'], required: true },
+}, { timestamps: true });
 
-const RoomSchema = new mongoose.Schema({
+// Room Schema
+const roomSchema = new Schema({
   number: { type: String, required: true, unique: true },
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  roomType: { type: String, enum: ['single', 'double', 'triple'], required: true },
+  hostelBlock: { type: String, enum: ['Block A', 'Block B', 'Block C'], required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   status: { type: String, enum: ['available', 'occupied'], default: 'available' },
-});
+}, { timestamps: true });
 
-const MaintenanceSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+// Room Request Schema
+const roomRequestSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  status: { type: String, enum: ['pending', 'approved', 'rejected'], default: 'pending' },
+}, { timestamps: true });
+
+// Maintenance Schema
+const maintenanceSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   description: { type: String, required: true },
   status: { type: String, enum: ['Pending', 'In Progress', 'Completed'], default: 'Pending' },
-});
+  assignedStaff: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+}, { timestamps: true });
 
-const EventSchema = new mongoose.Schema({
+// Event Schema
+const eventSchema = new Schema({
   title: { type: String, required: true },
   date: { type: String, required: true },
-});
+}, { timestamps: true });
 
-const FeeSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+// Fee Schema
+const feeSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   amount: { type: Number, required: true },
   dueDate: { type: String, required: true },
   status: { type: String, enum: ['Pending', 'Paid'], default: 'Pending' },
-});
+}, { timestamps: true });
 
-const VisitorSchema = new mongoose.Schema({
+// Visitor Schema
+const visitorSchema = new Schema({
   name: { type: String, required: true },
   contactNumber: { type: String, required: true },
   visitDate: { type: String, required: true },
   purpose: { type: String, required: true },
   status: { type: String, enum: ['Pending', 'Approved', 'Rejected'], default: 'Pending' },
-});
+}, { timestamps: true });
 
-const FeedbackSchema = new mongoose.Schema({
-  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+// Feedback Schema
+const feedbackSchema = new Schema({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   feedback: { type: String, required: true },
-});
+}, { timestamps: true });
 
 module.exports = {
-  User: mongoose.model('User', UserSchema),
-  Room: mongoose.model('Room', RoomSchema),
-  Maintenance: mongoose.model('Maintenance', MaintenanceSchema),
-  Event: mongoose.model('Event', EventSchema),
-  Fee: mongoose.model('Fee', FeeSchema),
-  Visitor: mongoose.model('Visitor', VisitorSchema),
-  Feedback: mongoose.model('Feedback', FeedbackSchema),
+  User: mongoose.model('User', userSchema),
+  Room: mongoose.model('Room', roomSchema),
+  RoomRequest: mongoose.model('RoomRequest', roomRequestSchema),
+  Maintenance: mongoose.model('Maintenance', maintenanceSchema),
+  Event: mongoose.model('Event', eventSchema),
+  Fee: mongoose.model('Fee', feeSchema),
+  Visitor: mongoose.model('Visitor', visitorSchema),
+  Feedback: mongoose.model('Feedback', feedbackSchema),
 };
