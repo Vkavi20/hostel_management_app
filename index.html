@@ -149,6 +149,13 @@
     button.show:hover {
       background-color: #218838;
     }
+    button.edit {
+      background-color: #ffc107;
+      color: black;
+    }
+    button.edit:hover {
+      background-color: #e0a800;
+    }
     button.approve {
       background-color: #28a745;
     }
@@ -309,6 +316,12 @@
       .menu-toggle {
         display: block;
       }
+      table {
+        font-size: 0.9rem;
+      }
+      th, td {
+        padding: 8px;
+      }
     }
   </style>
 </head>
@@ -379,7 +392,6 @@
       <div id="admin-maintenance" class="card"></div>
       <div id="admin-events" class="card"></div>
       <div id="admin-fees" class="card"></div>
-      <div id="admin-visitors" class="card"></div>
       <div id="admin-feedback" class="card"></div>
     </div>
   </div>
@@ -493,10 +505,10 @@
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || 'Action failed');
         cache.clear();
-        return true;
+        return result;
       } catch (err) {
         showNotification(err.message, true);
-        return false;
+        return null;
       } finally {
         showLoading(false);
       }
@@ -634,7 +646,6 @@
           { id: 'admin-maintenance', name: 'Maintenance Requests' },
           { id: 'admin-events', name: 'Event Management' },
           { id: 'admin-fees', name: 'Fees Management' },
-          { id: 'admin-visitors', name: 'Visitor Management' },
           { id: 'admin-feedback', name: 'Feedback' }
         ];
         sidebarMenu.innerHTML = sections.map(s => `<li onclick="scrollToSection('${s.id}')">${s.name}</li>`).join('');
@@ -659,10 +670,16 @@
 
       // Room Allotment
       const rooms = await fetchData('/api/rooms');
+      const requests = await fetchData('/api/room-requests');
       document.getElementById('student-room').innerHTML = `
         <h3>Room Allotment</h3>
         ${rooms.length > 0 ? `
           <p>Assigned Room: ${rooms[0].number}</p>
+          <p>Room Type: ${rooms[0].roomType}</p>
+          <p>Hostel Block: ${rooms[0].hostelBlock}</p>
+          <p>Status: ${rooms[0].status}</p>
+        ` : requests.find(req => req.userId._id === user._id && req.status === 'pending') ? `
+          <p>Room request pending</p>
         ` : `
           <p>No room assigned</p>
           <button onclick="showStudentRoomForm()">Request Room</button>
@@ -683,7 +700,7 @@
             </tr>
           </thead>
           <tbody>
-            ${maintenance.map(req => `
+            ${maintenance.filter(req => req.userId._id === user._id).map(req => `
               <tr>
                 <td>${req.description}</td>
                 <td>${req.status}</td>
@@ -792,12 +809,14 @@
       const maintenance = await fetchData('/api/maintenance');
       document.getElementById('staff-maintenance').innerHTML = `
         <h3>Maintenance Requests</h3>
+        <button onclick="showMaintenanceForm()">Submit Request</button>
         <table>
           <thead>
             <tr>
               <th>Description</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>User</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -805,9 +824,11 @@
               <tr>
                 <td>${req.description}</td>
                 <td>${req.status}</td>
+                <td>${req.userId.name} (${req.userId.userId})</td>
                 <td>
-                  <button onclick="updateMaintenance('${req._id}', 'In Progress')">In Progress</button>
-                  <button onclick="updateMaintenance('${req._id}', 'Completed')">Completed</button>
+                  <button class="show" onclick="showMaintenanceDetails('${req._id}', '${req.description}', '${req.status}', '${req.userId.name}', '${req.userId.userId}')">Show</button>
+                  <button class="edit" onclick="showMaintenanceEditForm('${req._id}', '${req.description}', '${req.status}')">Edit</button>
+                  <button class="delete" onclick="deleteMaintenance('${req._id}')">Delete</button>
                 </td>
               </tr>
             `).join('')}
@@ -818,157 +839,6 @@
       // Visitors
       const visitors = await fetchData('/api/visitors');
       document.getElementById('staff-visitors').innerHTML = `
-        <h3>Visitor Management</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Contact Number</th>
-              <th>Visit Date</th>
-              <th>Purpose</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${visitors.map(visitor => `
-              <tr>
-                <td>${visitor.name}</td>
-                <td>${visitor.contactNumber}</td>
-                <td>${visitor.visitDate}</td>
-                <td>${visitor.purpose}</td>
-                <td>${visitor.status}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    }
-
-    // Admin Dashboard
-    async function loadAdminDashboard() {
-      // Profile
-      document.getElementById('admin-profile').innerHTML = `
-        <h3>Profile</h3>
-        <p>User ID: ${user.userId}</p>
-        <p>Name: ${user.name}</p>
-        <p>Role: ${user.role}</p>
-      `;
-
-      // Rooms
-      const rooms = await fetchData('/api/rooms');
-      document.getElementById('admin-rooms').innerHTML = `
-        <h3>Room Management</h3>
-        <button onclick="showRoomForm()">Add/Assign Room</button>
-        <table>
-          <thead>
-            <tr>
-              <th>Room Number</th>
-              <th>Status</th>
-              <th>User</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rooms.map(room => `
-              <tr>
-                <td>${room.number}</td>
-                <td>${room.status}</td>
-                <td>${room.userId ? `${room.userId.name} (${room.userId.userId})` : '-'}</td>
-                <td>
-                  <button class="show" onclick="showRoomDetails('${room._id}', '${room.number}', '${room.status}', '${room.userId ? room.userId.name : '-'}', '${room.userId ? room.userId.userId : '-'}')">Show</button>
-                  ${room.status === 'occupied' ? `
-                    <button class="delete" onclick="unassignRoom('${room._id}')">Unassign</button>
-                  ` : `
-                    <button onclick="showRoomAssignForm('${room._id}', '${room.number}')">Assign</button>
-                  `}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-
-      // Maintenance Requests
-      const maintenance = await fetchData('/api/maintenance');
-      document.getElementById('admin-maintenance').innerHTML = `
-        <h3>Maintenance Requests</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Description</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${maintenance.map(req => `
-              <tr>
-                <td>${req.description}</td>
-                <td>${req.status}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-
-      // Events
-      const events = await fetchData('/api/events');
-      document.getElementById('admin-events').innerHTML = `
-        <h3>Event Management</h3>
-        <button onclick="showEventForm()">Add Event</button>
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${events.map(event => `
-              <tr>
-                <td>${event.title}</td>
-                <td>${event.date}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-
-      // Fees
-      const fees = await fetchData('/api/fees');
-      document.getElementById('admin-fees').innerHTML = `
-        <h3>Fees Management</h3>
-        <button onclick="showFeeForm()">Add Fee</button>
-        <table>
-          <thead>
-            <tr>
-              <th>User</th>
-              <th>Amount</th>
-              <th>Due Date</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${fees.map(fee => `
-              <tr>
-                <td>${fee.userId ? `${fee.userId.name} (${fee.userId.userId})` : '-'}</td>
-                <td>$${fee.amount}</td>
-                <td>${fee.dueDate}</td>
-                <td>${fee.status}</td>
-                <td>
-                  ${fee.status === 'Pending' ? `
-                    <button onclick="updateFeeStatus('${fee._id}', 'Paid')">Mark as Paid</button>
-                  ` : '-'}
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-
-      // Visitors
-      const visitors = await fetchData('/api/visitors');
-      document.getElementById('admin-visitors').innerHTML = `
         <h3>Visitor Management</h3>
         <table>
           <thead>
@@ -1000,6 +870,158 @@
           </tbody>
         </table>
       `;
+    }
+
+    // Admin Dashboard
+    async function loadAdminDashboard() {
+      // Profile
+      document.getElementById('admin-profile').innerHTML = `
+        <h3>Profile</h3>
+        <p>User ID: ${user.userId}</p>
+        <p>Name: ${user.name}</p>
+        <p>Role: ${user.role}</p>
+      `;
+
+      // Room Management
+      const rooms = await fetchData('/api/rooms');
+      const roomRequests = await fetchData('/api/room-requests');
+      document.getElementById('admin-rooms').innerHTML = `
+        <h3>Room Management</h3>
+        <button onclick="showRoomForm()">Add Room</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Room Number</th>
+              <th>Room Type</th>
+              <th>Hostel Block</th>
+              <th>Status</th>
+              <th>Assigned User</th>
+              <th>Pending Requests</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rooms.map(room => {
+              const pendingRequest = roomRequests.find(req => req.userId._id === (room.userId?._id || '') && req.status === 'pending');
+              return `
+                <tr>
+                  <td>${room.number}</td>
+                  <td>${room.roomType}</td>
+                  <td>${room.hostelBlock}</td>
+                  <td>${room.status}</td>
+                  <td>${room.userId ? `${room.userId.name} (${room.userId.userId})` : '-'}</td>
+                  <td>${pendingRequest ? `${pendingRequest.userId.name} (${pendingRequest.userId.userId})` : '-'}</td>
+                  <td>
+                    <button class="show" onclick="showRoomDetails('${room._id}', '${room.number}', '${room.roomType}', '${room.hostelBlock}', '${room.status}', '${room.userId ? room.userId.name : '-'}', '${room.userId ? room.userId.userId : '-'}')">Show</button>
+                    <button class="edit" onclick="showRoomEditForm('${room._id}', '${room.number}', '${room.roomType}', '${room.hostelBlock}', '${room.userId ? room.userId._id : ''}')">Edit</button>
+                    ${room.status === 'occupied' ? `
+                      <button class="delete" onclick="unassignRoom('${room._id}')">Unassign</button>
+                    ` : ''}
+                    <button class="delete" onclick="deleteRoom('${room._id}')">Delete</button>
+                    ${pendingRequest ? `
+                      <button class="approve" onclick="showRoomRequestForm('${pendingRequest._id}', '${pendingRequest.userId.userId}', '${pendingRequest.userId.name}')">Approve Request</button>
+                      <button class="reject" onclick="updateRoomRequest('${pendingRequest._id}', 'rejected')">Reject Request</button>
+                    ` : ''}
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Maintenance Requests
+      const maintenance = await fetchData('/api/maintenance');
+      document.getElementById('admin-maintenance').innerHTML = `
+        <h3>Maintenance Requests</h3>
+        <button onclick="showMaintenanceForm()">Add Request</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Description</th>
+              <th>Status</th>
+              <th>User</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${maintenance.map(req => `
+              <tr>
+                <td>${req.description}</td>
+                <td>${req.status}</td>
+                <td>${req.userId.name} (${req.userId.userId})</td>
+                <td>
+                  <button class="show" onclick="showMaintenanceDetails('${req._id}', '${req.description}', '${req.status}', '${req.userId.name}', '${req.userId.userId}')">Show</button>
+                  <button class="edit" onclick="showMaintenanceEditForm('${req._id}', '${req.description}', '${req.status}')">Edit</button>
+                  <button class="delete" onclick="deleteMaintenance('${req._id}')">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Events
+      const events = await fetchData('/api/events');
+      document.getElementById('admin-events').innerHTML = `
+        <h3>Event Management</h3>
+        <button onclick="showEventForm()">Add Event</button>
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${events.map(event => `
+              <tr>
+                <td>${event.title}</td>
+                <td>${event.date}</td>
+                <td>
+                  <button class="show" onclick="showEventDetails('${event._id}', '${event.title}', '${event.date}')">Show</button>
+                  <button class="edit" onclick="showEventEditForm('${event._id}', '${event.title}', '${event.date}')">Edit</button>
+                  <button class="delete" onclick="deleteEvent('${event._id}')">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
+
+      // Fees
+      const fees = await fetchData('/api/fees');
+      document.getElementById('admin-fees').innerHTML = `
+        <h3>Fees Management</h3>
+        <button onclick="showFeeForm()">Add Fee</button>
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Amount</th>
+              <th>Due Date</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${fees.map(fee => `
+              <tr>
+                <td>${fee.userId ? `${fee.userId.name} (${fee.userId.userId})` : '-'}</td>
+                <td>$${fee.amount}</td>
+                <td>${fee.dueDate}</td>
+                <td>${fee.status}</td>
+                <td>
+                  <button class="show" onclick="showFeeDetails('${fee._id}', '${fee.userId ? fee.userId.name : '-'}', '${fee.userId ? fee.userId.userId : '-'}', '${fee.amount}', '${fee.dueDate}', '${fee.status}')">Show</button>
+                  <button class="edit" onclick="showFeeEditForm('${fee._id}', '${fee.userId ? fee.userId._id : ''}', '${fee.amount}', '${fee.dueDate}', '${fee.status}')">Edit</button>
+                  <button class="delete" onclick="deleteFee('${fee._id}')">Delete</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      `;
 
       // Feedback
       const feedback = await fetchData('/api/feedback');
@@ -1023,9 +1045,11 @@
     }
 
     // Modal Functions
-    function showRoomDetails(roomId, roomNumber, status, userName, userId) {
+    function showRoomDetails(roomId, roomNumber, roomType, hostelBlock, status, userName, userId) {
       const contentBody = `
         <p><strong>Room Number:</strong> ${roomNumber}</p>
+        <p><strong>Room Type:</strong> ${roomType}</p>
+        <p><strong>Hostel Block:</strong> ${hostelBlock}</p>
         <p><strong>Status:</strong> ${status}</p>
         <p><strong>Assigned User:</strong> ${userName}</p>
         <p><strong>User ID:</strong> ${userId}</p>
@@ -1039,85 +1063,203 @@
         showNotification('You already have a room assigned', true);
         return;
       }
-
-      const availableRooms = await fetchData('/api/rooms/available', false);
-      if (availableRooms.length === 0) {
-        showNotification('No rooms available', true);
+      const requests = await fetchData('/api/room-requests');
+      if (requests.find(req => req.userId._id === user._id && req.status === 'pending')) {
+        showNotification('You already have a pending room request', true);
         return;
       }
-
       showModal('Request Room', `
-        <select id="room-number" required>
-          <option value="">Select Room</option>
-          ${availableRooms.map(room => `<option value="${room.number}">${room.number}</option>`).join('')}
-        </select>
-        <button type="submit">Request</button>
+        <p>Click to submit a room request to the admin.</p>
+        <button type="submit">Submit Request</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const number = document.getElementById('room-number').value;
-        if (await postData('/api/rooms', { number, userId: user._id })) {
+        const result = await postData('/api/room-requests', { userId: user._id });
+        if (result) {
           loadStudentDashboard();
           closeModal();
-          showNotification('Room requested successfully');
+          showNotification('Room request submitted successfully');
         }
       });
     }
 
     function showRoomForm() {
-      showModal('Add/Assign Room', `
+      showModal('Add Room', `
         <input type="text" id="room-number" placeholder="Room Number" required>
+        <select id="room-type" required>
+          <option value="">Select Room Type</option>
+          <option value="single">Single</option>
+          <option value="double">Double</option>
+          <option value="triple">Triple</option>
+        </select>
+        <select id="hostel-block" required>
+          <option value="">Select Hostel Block</option>
+          <option value="Block A">Block A</option>
+          <option value="Block B">Block B</option>
+          <option value="Block C">Block C</option>
+        </select>
         <input type="text" id="room-user-id" placeholder="User ID (optional)">
         <button type="submit">Submit</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const number = document.getElementById('room-number').value;
+        const roomType = document.getElementById('room-type').value;
+        const hostelBlock = document.getElementById('hostel-block').value;
         const userId = document.getElementById('room-user-id').value || null;
-        if (await postData('/api/rooms', { number, userId })) {
+        if (await postData('/api/rooms', { number, roomType, hostelBlock, userId })) {
           loadAdminDashboard();
           closeModal();
-          showNotification('Room added/assigned successfully');
+          showNotification('Room added successfully');
         }
       });
     }
 
-    function showRoomAssignForm(roomId, roomNumber) {
-      showModal(`Assign Room ${roomNumber}`, `
-        <input type="text" id="room-user-id" placeholder="User ID" required>
-        <button type="submit">Assign</button>
+    function showRoomEditForm(roomId, roomNumber, roomType, hostelBlock, userId) {
+      showModal(`Edit Room ${roomNumber}`, `
+        <input type="text" id="room-number" value="${roomNumber}" required>
+        <select id="room-type" required>
+          <option value="single" ${roomType === 'single' ? 'selected' : ''}>Single</option>
+          <option value="double" ${roomType === 'double' ? 'selected' : ''}>Double</option>
+          <option value="triple" ${roomType === 'triple' ? 'selected' : ''}>Triple</option>
+        </select>
+        <select id="hostel-block" required>
+          <option value="Block A" ${hostelBlock === 'Block A' ? 'selected' : ''}>Block A</option>
+          <option value="Block B" ${hostelBlock === 'Block B' ? 'selected' : ''}>Block B</option>
+          <option value="Block C" ${hostelBlock === 'Block C' ? 'selected' : ''}>Block C</option>
+        </select>
+        <input type="text" id="room-user-id" value="${userId || ''}" placeholder="User ID (optional)">
+        <button type="submit">Update</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const userId = document.getElementById('room-user-id').value;
-        if (await postData('/api/rooms', { number: roomNumber, userId })) {
+        const number = document.getElementById('room-number').value;
+        const roomType = document.getElementById('room-type').value;
+        const hostelBlock = document.getElementById('hostel-block').value;
+        const userId = document.getElementById('room-user-id').value || null;
+        if (await putData(`/api/rooms/${roomId}`, { number, roomType, hostelBlock, userId, status: userId ? 'occupied' : 'available' })) {
           loadAdminDashboard();
           closeModal();
-          showNotification('Room assigned successfully');
+          showNotification('Room updated successfully');
         }
       });
     }
 
+    function showRoomRequestForm(requestId, userId, userName) {
+      showModal(`Approve Room Request for ${userName}`, `
+        <input type="text" id="room-number" placeholder="Room Number" required>
+        <select id="room-type" required>
+          <option value="">Select Room Type</option>
+          <option value="single">Single</option>
+          <option value="double">Double</option>
+          <option value="triple">Triple</option>
+        </select>
+        <select id="hostel-block" required>
+          <option value="">Select Hostel Block</option>
+          <option value="Block A">Block A</option>
+          <option value="Block B">Block B</option>
+          <option value="Block C">Block C</option>
+        </select>
+        <button type="submit">Approve</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const number = document.getElementById('room-number').value;
+        const roomType = document.getElementById('room-type').value;
+        const hostelBlock = document.getElementById('hostel-block').value;
+        if (await putData(`/api/room-requests/${requestId}`, { status: 'approved', number, roomType, hostelBlock })) {
+          loadAdminDashboard();
+          closeModal();
+          showNotification('Room request approved and room assigned');
+        }
+      });
+    }
+
+    async function updateRoomRequest(requestId, status) {
+      if (await putData(`/api/room-requests/${requestId}`, { status })) {
+        loadAdminDashboard();
+        showNotification(`Room request ${status}`);
+      }
+    }
+
     async function unassignRoom(roomId) {
-      if (await deleteData(`/api/rooms/${roomId}`)) {
+      if (await deleteData(`/api/rooms/${roomId}?action=unassign`)) {
         loadAdminDashboard();
         showNotification('Room unassigned successfully');
       }
     }
 
+    async function deleteRoom(roomId) {
+      if (await deleteData(`/api/rooms/${roomId}`)) {
+        loadAdminDashboard();
+        showNotification('Room deleted successfully');
+      }
+    }
+
     function showMaintenanceForm() {
       showModal('Submit Maintenance Request', `
+        <input type="text" id="maintenance-user-id" placeholder="User ID" required ${user.role === 'student' ? 'value="' + user._id + '" readonly' : ''}>
         <input type="text" id="maintenance-description" placeholder="Issue (e.g., Fix light)" required>
+        <select id="maintenance-status" required ${user.role === 'student' ? 'style="display: none;"' : ''}>
+          <option value="Pending">Pending</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Completed">Completed</option>
+        </select>
         <button type="submit">Submit</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        const userId = document.getElementById('maintenance-user-id').value;
         const description = document.getElementById('maintenance-description').value;
-        if (await postData('/api/maintenance', { userId: user._id, description })) {
-          loadStudentDashboard();
+        const status = document.getElementById('maintenance-status')?.value || 'Pending';
+        if (await postData('/api/maintenance', { userId, description, status })) {
+          if (user.role === 'student') loadStudentDashboard();
+          else if (user.role === 'staff') loadStaffDashboard();
+          else loadAdminDashboard();
           closeModal();
+          showNotification('Maintenance request submitted');
         }
       });
+    }
+
+    function showMaintenanceEditForm(id, description, status) {
+      showModal('Edit Maintenance Request', `
+        <input type="text" id="maintenance-description" value="${description}" required>
+        <select id="maintenance-status" required>
+          <option value="Pending" ${status === 'Pending' ? 'selected' : ''}>Pending</option>
+          <option value="In Progress" ${status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+          <option value="Completed" ${status === 'Completed' ? 'selected' : ''}>Completed</option>
+        </select>
+        <button type="submit">Update</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const description = document.getElementById('maintenance-description').value;
+        const status = document.getElementById('maintenance-status').value;
+        if (await putData(`/api/maintenance/${id}`, { description, status })) {
+          if (user.role === 'staff') loadStaffDashboard();
+          else loadAdminDashboard();
+          closeModal();
+          showNotification('Maintenance request updated');
+        }
+      });
+    }
+
+    function showMaintenanceDetails(id, description, status, userName, userId) {
+      const contentBody = `
+        <p><strong>Description:</strong> ${description}</p>
+        <p><strong>Status:</strong> ${status}</p>
+        <p><strong>User:</strong> ${userName} (${userId})</p>
+      `;
+      showModal('Maintenance Request Details', '', contentBody);
+    }
+
+    async function deleteMaintenance(id) {
+      if (await deleteData(`/api/maintenance/${id}`)) {
+        if (user.role === 'staff') loadStaffDashboard();
+        else loadAdminDashboard();
+        showNotification('Maintenance request deleted');
+      }
     }
 
     function showVisitorForm() {
@@ -1144,7 +1286,7 @@
 
     async function updateVisitorStatus(id, status) {
       if (await putData(`/api/visitors/${id}`, { status })) {
-        loadAdminDashboard();
+        loadStaffDashboard();
         showNotification(`Visitor ${status.toLowerCase()} successfully`);
       }
     }
@@ -1160,6 +1302,7 @@
         if (await postData('/api/feedback', { userId: user._id, feedback })) {
           loadStudentDashboard();
           closeModal();
+          showNotification('Feedback submitted');
         }
       });
     }
@@ -1177,8 +1320,42 @@
         if (await postData('/api/events', { title, date })) {
           loadAdminDashboard();
           closeModal();
+          showNotification('Event added successfully');
         }
       });
+    }
+
+    function showEventEditForm(id, title, date) {
+      showModal('Edit Event', `
+        <input type="text" id="event-title" value="${title}" required>
+        <input type="date" id="event-date" value="${date}" required>
+        <button type="submit">Update</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('event-title').value;
+        const date = document.getElementById('event-date').value;
+        if (await putData(`/api/events/${id}`, { title, date })) {
+          loadAdminDashboard();
+          closeModal();
+          showNotification('Event updated successfully');
+        }
+      });
+    }
+
+    function showEventDetails(id, title, date) {
+      const contentBody = `
+        <p><strong>Title:</strong> ${title}</p>
+        <p><strong>Date:</strong> ${date}</p>
+      `;
+      showModal('Event Details', '', contentBody);
+    }
+
+    async function deleteEvent(id) {
+      if (await deleteData(`/api/events/${id}`)) {
+        loadAdminDashboard();
+        showNotification('Event deleted successfully');
+      }
     }
 
     function showFeeForm() {
@@ -1186,6 +1363,10 @@
         <input type="text" id="fee-user-id" placeholder="User ID" required>
         <input type="number" id="fee-amount" placeholder="Amount" required>
         <input type="date" id="fee-due-date" required>
+        <select id="fee-status" required>
+          <option value="Pending">Pending</option>
+          <option value="Paid">Paid</option>
+        </select>
         <button type="submit">Submit</button>
       `);
       document.getElementById('modal-form').addEventListener('submit', async (e) => {
@@ -1193,23 +1374,54 @@
         const userId = document.getElementById('fee-user-id').value;
         const amount = document.getElementById('fee-amount').value;
         const dueDate = document.getElementById('fee-due-date').value;
-        if (await postData('/api/fees', { userId, amount, dueDate })) {
+        const status = document.getElementById('fee-status').value;
+        if (await postData('/api/fees', { userId, amount, dueDate, status })) {
           loadAdminDashboard();
           closeModal();
+          showNotification('Fee added successfully');
         }
       });
     }
 
-    async function updateFeeStatus(id, status) {
-      if (await putData(`/api/fees/${id}`, { status })) {
-        loadAdminDashboard();
-        showNotification('Fee status updated successfully');
-      }
+    function showFeeEditForm(id, userId, amount, dueDate, status) {
+      showModal('Edit Fee', `
+        <input type="text" id="fee-user-id" value="${userId || ''}" placeholder="User ID" required>
+        <input type="number" id="fee-amount" value="${amount}" required>
+        <input type="date" id="fee-due-date" value="${dueDate}" required>
+        <select id="fee-status" required>
+          <option value="Pending" ${status === 'Pending' ? 'selected' : ''}>Pending</option>
+          <option value="Paid" ${status === 'Paid' ? 'selected' : ''}>Paid</option>
+        </select>
+        <button type="submit">Update</button>
+      `);
+      document.getElementById('modal-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const userId = document.getElementById('fee-user-id').value;
+        const amount = document.getElementById('fee-amount').value;
+        const dueDate = document.getElementById('fee-due-date').value;
+        const status = document.getElementById('fee-status').value;
+        if (await putData(`/api/fees/${id}`, { userId, amount, dueDate, status })) {
+          loadAdminDashboard();
+          closeModal();
+          showNotification('Fee updated successfully');
+        }
+      });
     }
 
-    async function updateMaintenance(id, status) {
-      if (await putData(`/api/maintenance/${id}`, { status })) {
-        loadStaffDashboard();
+    function showFeeDetails(id, userName, userId, amount, dueDate, status) {
+      const contentBody = `
+        <p><strong>User:</strong> ${userName} (${userId})</p>
+        <p><strong>Amount:</strong> $${amount}</p>
+        <p><strong>Due Date:</strong> ${dueDate}</p>
+        <p><strong>Status:</strong> ${status}</p>
+      `;
+      showModal('Fee Details', '', contentBody);
+    }
+
+    async function deleteFee(id) {
+      if (await deleteData(`/api/fees/${id}`)) {
+        loadAdminDashboard();
+        showNotification('Fee deleted successfully');
       }
     }
 
